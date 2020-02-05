@@ -1,2 +1,6 @@
 *.png
 *.pckl
+*.mat
+*.log
+*.eps
+*.txt
