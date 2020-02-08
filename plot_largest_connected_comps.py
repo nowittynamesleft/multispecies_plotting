@@ -12,10 +12,11 @@ network_files = sys.argv[3:] # individual network pickle files for all organisms
 net_ratios = []
 taxa = []
 num_nodes = []
-for network_file in network_files:
+for network_path in network_files:
+    network_file = network_path.split('/')[-1]
     taxon = network_file.split('_')[0]
     taxa.append(taxon)
-    net_pickle = pickle.load(open(network_file, 'rb'))
+    net_pickle = pickle.load(open(network_path, 'rb'))
     net = net_pickle['nets']['experimental']
 
     graph = nx.from_scipy_sparse_matrix(net)
@@ -61,6 +62,7 @@ rects_1 = ax.bar(x_positions-0.15, sorted_net_ratios, width, label='N_c/N')
 rects_2 = ax.bar(x_positions+0.15, sorted_annot_ratios, width, label='Proportion annotated')
 
 ax.set_ylabel('N_c/N')
+ax.set_xlabel('Taxa - Total number of proteins: ' + str(int(sum(num_nodes))))
 ax.set_title('Ratio of largest connected components to total size of graph - ' + title_keyword)
 ax.set_xticks(x_positions)
 ax.set_xticklabels(taxa)
@@ -69,15 +71,13 @@ ax.legend()
 
 def autolabel(rects):
     """Attach a text label above each bar in *rects*, displaying its height."""
-    for rect in rects:
+    for i, rect in enumerate(rects):
         height = rect.get_height()
-        ax.annotate('{0:.2f}'.format(height),
+        ax.annotate('{0:.2f}'.format(height) + '-' + str(int(num_nodes[i])),
                     xy=(rect.get_x() + rect.get_width() / 2, height),
                     xytext=(0, 3),  # 3 points vertical offset
                     textcoords="offset points",
                     ha='center', va='bottom')
-
-
 
 autolabel(rects_1)
 autolabel(rects_2)
