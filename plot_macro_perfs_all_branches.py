@@ -45,24 +45,38 @@ def is_number(s):
         return False
 
 
-def plot_bars(x, y, stds, x_label, y_label, title):
+def plot_bars(x, y, stds, x_label, y_label, ax):
     x_pos = np.arange(0, len(x))
-    fig, ax = plt.subplots(1)
     #ax.bar(x_pos, y, yerr=stds, zorder=2)
-    ax.bar(x_pos, y, yerr=stds, capsize=5)
+    ax.bar(x_pos, y, width=1/len(x), yerr=stds, capsize=5)
     ax.set_xticks(x_pos)
     ax.set_xticklabels(x)
-    ax.set_yticks(np.arange(0, 1.05*max(y), 0.02))
+    ax.set_yticks(np.arange(0, 1.05*max(y), 0.05))
     ax.set_xlabel(x_label)
     ax.set_ylabel(y_label)
-    #ax.grid(zorder=0)
-    ax.set_title(title)
-    plt.savefig(title + '_macro_perfs.eps')
-    plt.show()
 
 
 if __name__ == '__main__':
     labels = sys.argv[1].split(',')
+    title = sys.argv[2]
     fnames = sys.argv[3:]
-    macros, stds = load_macros(fnames)
-    plot_bars(labels, macros, stds, 'Branch', 'Macro AUPR', sys.argv[2])
+    branch_fnames = {'MF': [], 'BP': [], 'CC': []}
+    for fname in fnames:
+        if 'molecular_function' in fname:
+            branch_fnames['MF'].append(fname)
+        elif 'cellular_component' in fname:
+            branch_fnames['CC'].append(fname)
+        elif 'biological_process' in fname:
+            branch_fnames['BP'].append(fname)
+        else:
+            print('One of the filenames doesn\'t have the strings \'molecular_function\', \'cellular_component\', or \'biological_process\' in it. All performance filenames must have one of these to be included in the plots.')
+    assert len(branch_fnames['MF']) == len(branch_fnames['CC']) == len(branch_fnames['BP'])
+    # I want to input number of files and have it know to put all files in one plots, with the number of subplots being with the number of files
+    fig, axes = plt.subplots(1, 3, constrained_layout=True)
+    for i, branch in enumerate(['MF', 'BP', 'CC']):
+        macros, stds = load_macros(branch_fnames[branch])
+        plot_bars(labels, macros, stds, branch + ' Methods', 'Macro AUPR', axes[i])
+    fig.suptitle(title, fontsize=16) 
+    #plt.tight_layout()
+    plt.show()
+    plt.savefig(title + '_macro_perfs.eps')

@@ -4,6 +4,17 @@ import sys
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+
+big_font = {'family' : 'normal',
+        'weight' : 'bold',
+        'size'   : 22}
+
+matplotlib.rc('font', **big_font)
+#tax_id_sci_name_df = pd.read_csv('taxonomy-filtered-reviewed_yes+AND+annotated_yes.tab', delimiter='\t')
+#tax_id_to_sci_name = dict(zip(tax_id_sci_name_df['Taxon'].astype(str), tax_id_sci_name_df['Scientific name']))
+#tax_id_to_sci_name['1148'] = 'Synechocystis sp. (strain PCC 6803)'
+
 
 annot_file = sys.argv[1] # annot file for all organisms in this set
 title_keyword = sys.argv[2]
@@ -56,8 +67,11 @@ width = 0.3
 sums = np.array(net_ratios) + np.array(annot_ratios)
 sort_inds = np.argsort(sums)
 sorted_taxa = np.array(taxa)[sort_inds]
+#sorted_sci_names = [tax_id_to_sci_name[taxon] for taxon in sorted_taxa]
 sorted_net_ratios = np.array(net_ratios)[sort_inds]
 sorted_annot_ratios = np.array(annot_ratios)[sort_inds]
+sorted_num_nodes = np.array(num_nodes)[sort_inds]
+
 rects_1 = ax.bar(x_positions-0.15, sorted_net_ratios, width, label='N_c/N')
 rects_2 = ax.bar(x_positions+0.15, sorted_annot_ratios, width, label='Proportion annotated')
 
@@ -65,7 +79,8 @@ ax.set_ylabel('N_c/N')
 ax.set_xlabel('Taxa - Total number of proteins: ' + str(int(sum(num_nodes))))
 ax.set_title('Ratio of largest connected components to total size of graph - ' + title_keyword)
 ax.set_xticks(x_positions)
-ax.set_xticklabels(taxa)
+#ax.set_xticklabels(sorted_sci_names)
+ax.set_xticklabels(sorted_taxa)
 
 ax.legend()
 
@@ -73,11 +88,11 @@ def autolabel(rects):
     """Attach a text label above each bar in *rects*, displaying its height."""
     for i, rect in enumerate(rects):
         height = rect.get_height()
-        ax.annotate('{0:.2f}'.format(height) + '-' + str(int(num_nodes[i])),
+        ax.annotate('{0:.2f}'.format(height) + '-' + str(int(sorted_num_nodes[i])),
                     xy=(rect.get_x() + rect.get_width() / 2, height),
                     xytext=(0, 3),  # 3 points vertical offset
                     textcoords="offset points",
-                    ha='center', va='bottom')
+                    ha='center', va='bottom', fontsize=14)
 
 autolabel(rects_1)
 autolabel(rects_2)
