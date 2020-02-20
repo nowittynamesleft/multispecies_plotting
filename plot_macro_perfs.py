@@ -65,4 +65,4 @@ if __name__ == '__main__':
     labels = sys.argv[1].split(',')
     fnames = sys.argv[3:]
     macros, stds = load_macros(fnames)
-    plot_bars(labels, macros, stds, 'Method', 'Macro AUPR', sys.argv[2])
+    plot_bars(labels, macros, stds, 'Branch', 'Macro AUPR', sys.argv[2])
