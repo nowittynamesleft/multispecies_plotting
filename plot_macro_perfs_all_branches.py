@@ -51,7 +51,11 @@ def plot_bars(x, y, stds, x_label, y_label, ax):
     ax.bar(x_pos, y, width=1/len(x), yerr=stds, capsize=5)
     ax.set_xticks(x_pos)
     ax.set_xticklabels(x)
+<<<<<<< HEAD
     ax.set_yticks(np.arange(0, 1, 0.05))
+=======
+    ax.set_yticks(np.arange(0, 1.05*max(y), 0.05))
+>>>>>>> a5c0ee4ea5265796f31a4172ec5c49be5fdb5dfd
     ax.set_xlabel(x_label)
     ax.set_ylabel(y_label)
 
