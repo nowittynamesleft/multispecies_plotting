@@ -95,6 +95,7 @@ def load_perfs(fnames):
             trial_accs = []
             trial_f1s = []
             for trial in range(0, num_trials):
+                print('Number of go ids: ' + str(len(pred_file['GO_IDs'])))
                 curr_trial_test_inds = pred_file['trial_splits'][trial][1]
                 curr_trial_preds = pred_file['trial_preds'][trial][curr_trial_test_inds]
                 curr_trial_labels = pred_file['true_labels'][curr_trial_test_inds]
@@ -110,6 +111,9 @@ def load_perfs(fnames):
             trial_macros = np.nanmean(perfs, axis=0)
         elif fname[-4:] == '.txt':
             trial_macros = []
+            trial_micros = []
+            trial_accs = []
+            trial_f1s = []
             for line in open(fname, 'r'):
                 fields = line.split(' ') 
                 if len(fields) > 3 and is_number(fields[0]):
@@ -119,6 +123,9 @@ def load_perfs(fnames):
                     trial_f1s.append(float(fields[3]))
                 print(trial_macros)
             trial_macros = np.array(trial_macros)
+            trial_micros = np.array(trial_micros)
+            trial_accs = np.array(trial_accs)
+            trial_f1s = np.array(trial_f1s)
 
         macro = np.nanmean(trial_macros)
         macros.append(macro)
@@ -135,7 +142,10 @@ def load_perfs(fnames):
         f1 = np.nanmean(trial_f1s)
         f1s.append(f1)
         f1_std_errs.append(sem(trial_f1s))
-
+    assert len(macros) == len(macro_std_errs)
+    assert len(micros) == len(micro_std_errs)
+    assert len(accs) == len(acc_std_errs)
+    assert len(f1s) == len(f1_std_errs)
     return macros, macro_std_errs, micros, micro_std_errs, accs, acc_std_errs, f1s, f1_std_errs
 
 def is_number(s):
@@ -157,6 +167,26 @@ def plot_bars(x, y, stds, x_label, y_label, ax, start_pos):
     ax.set_ylabel(y_label)
 
 
+def plot_bars_grouped_by_metric(method_names, metric_lists, metric_stds, x_label, ax):
+    metric_names = ['Macro AUPR', 'Micro AUPR', 'Acc', 'F1 score']
+    #color_hexes = ['#003f5c', '#58508d', '#bc5090', '#ff6361', '#ffa600']
+    #color_hexes = ['#130fff', '#ff0073', '#ff8600', '#a6ff00']
+    color_hexes = ['#5d63a6', '#c97199', '#f1a07d', '#dfe092']
+    # switch the metrics and the method names
+    for i in range(0, len(method_names)):
+        x_pos = i + np.arange(0, len(metric_lists))*(len(method_names)+1)
+        methods_curr_metric = np.array(metric_lists)[:,i].tolist()
+        methods_curr_metric_stds = np.array(metric_stds)[:,i].tolist()
+        ax.bar(x_pos, methods_curr_metric, width=1, yerr=methods_curr_metric_stds, capsize=5, label=method_names[i], color=color_hexes[i])
+    ax.set_xticks(np.arange(0, len(metric_lists))*(len(method_names)+1) + len(method_names)/2)
+    ax.set_xticklabels(metric_names)
+    ax.set_yticks(np.arange(0, 1.05, 0.05))
+    ax.set_ylim([0, 1.1])
+    ax.set_xlabel(x_label)
+    #ax.set_ylabel(y_label)
+    ax.legend()
+
+
 def plot_bars_all_metrics(method_names, metric_lists, metric_stds, x_label, ax):
     metric_names = ['Macro AUPR', 'Micro AUPR', 'Acc', 'F1 score']
     for i in range(0, len(metric_lists)):
@@ -164,7 +194,7 @@ def plot_bars_all_metrics(method_names, metric_lists, metric_stds, x_label, ax):
         ax.bar(x_pos, metric_lists[i], width=1, yerr=metric_stds[i], capsize=5, label=metric_names[i])
     ax.set_xticks(np.arange(0, len(method_names))*(len(metric_lists)+1) + len(metric_lists)/2)
     ax.set_xticklabels(method_names)
-    ax.set_yticks(np.arange(0, 1, 0.05))
+    ax.set_yticks(np.arange(0, 1.05, 0.05))
     ax.set_xlabel(x_label)
     #ax.set_ylabel(y_label)
     ax.legend()
@@ -187,12 +217,16 @@ if __name__ == '__main__':
     assert len(branch_fnames['MF']) == len(branch_fnames['CC']) == len(branch_fnames['BP'])
     # I want to input number of files and have it know to put all files in one plot, with the number of subplots being with the number of files
     fig, axes = plt.subplots(1, 3, constrained_layout=True)
+    #fig_2, axes_2 = plt.subplots(1, 3, constrained_layout=True)
 
     for i, branch in enumerate(['MF', 'BP', 'CC']):
         macros, macro_stds, micros, micro_stds, accs, acc_stds, f1s, f1_stds = load_perfs(branch_fnames[branch])
         metric_lists = [macros, micros, accs, f1s]
         metric_stds = [macro_stds, micro_stds, acc_stds, f1_stds]
-        plot_bars_all_metrics(labels, metric_lists, metric_stds, branch, axes[i])
+        print(metric_lists)
+        print(metric_stds)
+        plot_bars_grouped_by_metric(labels, metric_lists, metric_stds, branch, axes[i])
+        #plot_bars_all_metrics(labels, metric_lists, metric_stds, branch, axes_2[i])
         '''
         plot_bars(labels, macros, macro_stds, branch, 'Macro AUPR', axes[i])
         plot_bars(labels, micros, micro_stds, branch, 'Micro AUPR', axes[i])
