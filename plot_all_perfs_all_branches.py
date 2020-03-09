@@ -87,7 +87,25 @@ def load_perfs(fnames):
             perfs = pickle.load(open(fname, "rb"))
             trial_macros = np.nanmean(perfs, axis=0)
         '''
-        if fname[-5:] == '.pckl': # now assuming pred file instead
+        if fname[-5:] == '_scores.pckl': # now assuming BLAST pred files
+            pred_file = pickle.load(open(fname, 'rb'))
+            num_trials = len(pred_file['Y_hat_test'])
+            trial_macros = []
+            trial_micros = []
+            trial_accs = []
+            trial_f1s = []
+            for trial in range(0, num_trials):
+                print('Number of go ids: ' + str(len(pred_file['go_IDs'])))
+                curr_trial_preds = pred_file['Y_hat_test'][trial]
+                curr_trial_labels = pred_file['Y_test'][trial]
+                print('Num test: ' + str(curr_trial_preds.shape[0]))
+                curr_macro, curr_micro, curr_acc, curr_f1 = evaluate_performance(curr_trial_labels, curr_trial_preds, curr_trial_preds > 0.5)
+                trial_macros.append(curr_macro)
+                trial_micros.append(curr_micro)
+                trial_accs.append(curr_acc)
+                trial_f1s.append(curr_f1)
+
+        elif fname[-5:] == '.pckl': # now assuming pred file instead
             pred_file = pickle.load(open(fname, "rb"))
             num_trials = len(pred_file['trial_splits'])
             trial_macros = []
@@ -97,9 +115,12 @@ def load_perfs(fnames):
             for trial in range(0, num_trials):
                 print('Number of go ids: ' + str(len(pred_file['GO_IDs'])))
                 curr_trial_test_inds = pred_file['trial_splits'][trial][1]
+                curr_trial_train_inds = pred_file['trial_splits'][trial][0]
                 curr_trial_preds = pred_file['trial_preds'][trial][curr_trial_test_inds]
                 curr_trial_labels = pred_file['true_labels'][curr_trial_test_inds]
                 curr_macro, curr_micro, curr_acc, curr_f1 = evaluate_performance(curr_trial_labels, curr_trial_preds, curr_trial_preds > 0.5)
+                print('Num train: ' + str(len(curr_trial_train_inds)))
+                print('Num test: ' + str(len(curr_trial_test_inds)))
                 trial_macros.append(curr_macro)
                 trial_micros.append(curr_micro)
                 trial_accs.append(curr_acc)
