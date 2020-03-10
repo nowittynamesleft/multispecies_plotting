@@ -87,9 +87,10 @@ def load_perfs(fnames):
             perfs = pickle.load(open(fname, "rb"))
             trial_macros = np.nanmean(perfs, axis=0)
         '''
-        if fname[-5:] == '_scores.pckl': # now assuming BLAST pred files
+        if '_scores.pckl' in fname: # now assuming BLAST pred files
             pred_file = pickle.load(open(fname, 'rb'))
             num_trials = len(pred_file['Y_hat_test'])
+            print('BLAST baseline')
             trial_macros = []
             trial_micros = []
             trial_accs = []
@@ -194,6 +195,9 @@ def plot_bars_grouped_by_metric(method_names, metric_lists, metric_stds, x_label
     #color_hexes = ['#130fff', '#ff0073', '#ff8600', '#a6ff00']
     color_hexes = ['#5d63a6', '#c97199', '#f1a07d', '#dfe092']
     # switch the metrics and the method names
+    print(np.array(metric_lists).shape)
+    print(np.array(method_names).shape)
+    print(np.array(metric_stds).shape)
     for i in range(0, len(method_names)):
         x_pos = i + np.arange(0, len(metric_lists))*(len(method_names)+1)
         methods_curr_metric = np.array(metric_lists)[:,i].tolist()
@@ -235,6 +239,7 @@ if __name__ == '__main__':
             branch_fnames['BP'].append(fname)
         else:
             print('One of the filenames doesn\'t have the strings \'molecular_function\', \'cellular_component\', or \'biological_process\' in it. All performance filenames must have one of these to be included in the plots.')
+            print(fname)
     assert len(branch_fnames['MF']) == len(branch_fnames['CC']) == len(branch_fnames['BP'])
     # I want to input number of files and have it know to put all files in one plot, with the number of subplots being with the number of files
     fig, axes = plt.subplots(1, 3, constrained_layout=True)
@@ -244,8 +249,8 @@ if __name__ == '__main__':
         macros, macro_stds, micros, micro_stds, accs, acc_stds, f1s, f1_stds = load_perfs(branch_fnames[branch])
         metric_lists = [macros, micros, accs, f1s]
         metric_stds = [macro_stds, micro_stds, acc_stds, f1_stds]
-        print(metric_lists)
-        print(metric_stds)
+        print(np.array(metric_lists).shape)
+        print(np.array(metric_stds).shape)
         plot_bars_grouped_by_metric(labels, metric_lists, metric_stds, branch, axes[i])
         #plot_bars_all_metrics(labels, metric_lists, metric_stds, branch, axes_2[i])
         '''
