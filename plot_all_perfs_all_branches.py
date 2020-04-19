@@ -80,6 +80,7 @@ def load_perfs(fnames, loso=False):
     acc_std_errs = []
     f1s = []
     f1_std_errs = []
+    test_prot_set = set()
     for fname in fnames:
         print(fname)
         '''
@@ -96,10 +97,38 @@ def load_perfs(fnames, loso=False):
                 trial_micros = []
                 trial_accs = []
                 trial_f1s = []
+
+                new_test_prot_set = set(pred_file['prots'])
+
+
                 print('Number of go ids: ' + str(len(pred_file['go_IDs'])))
                 curr_trial_preds = pred_file['Y_hat_test']
                 curr_trial_labels = pred_file['Y_test']
                 print('Num test: ' + str(curr_trial_preds.shape[0]))
+
+                if len(test_prot_set) > 0:
+                    try:
+                        assert new_test_prot_set == test_prot_set
+                    except AssertionError:
+                        print('Intersect:')
+                        print(len(new_test_prot_set & test_prot_set))
+                        print('Difference (blast - other):')
+                        print(new_test_prot_set - test_prot_set)
+                        print('Difference (other - blast):')
+                        print(test_prot_set - new_test_prot_set)
+                        print('Removing the (blast - other) samples')
+                        prots_to_remove = new_test_prot_set - test_prot_set
+                        inds_to_remove = [list(pred_file['prots']).index(prot) for prot in prots_to_remove]
+                        keep_inds = np.array([i for i in range(0, len(pred_file['Y_test'])) if i not in inds_to_remove])
+                        print('Before')
+                        print(curr_trial_labels.shape)
+                        curr_trial_preds = curr_trial_preds[keep_inds,:]
+                        curr_trial_labels = curr_trial_labels[keep_inds,:]
+                        print('After')
+                        print(curr_trial_labels.shape)
+
+                else:
+                    test_prot_set = new_test_prot_set
                 curr_macro, curr_micro, curr_acc, curr_f1 = evaluate_performance(curr_trial_labels, curr_trial_preds, curr_trial_preds > 0.5)
                 trial_macros.append(curr_macro)
                 trial_micros.append(curr_micro)
@@ -121,6 +150,19 @@ def load_perfs(fnames, loso=False):
                 trial_micros.append(curr_micro)
                 trial_accs.append(curr_acc)
                 trial_f1s.append(curr_f1)
+                new_test_prot_set = set(pred_file['prot_IDs'])
+                if len(test_prot_set) > 0:
+                    try:
+                        assert new_test_prot_set == test_prot_set
+                    except AssertionError:
+                        print('Intersect:')
+                        print(len(new_test_prot_set & test_prot_set))
+                        print('Difference (maxout - blast):')
+                        print(new_test_prot_set - test_prot_set)
+                        print('Difference (blast - maxout):')
+                        print(test_prot_set - new_test_prot_set)
+                else:
+                    test_prot_set = new_test_prot_set
         else:
             if '_scores.pckl' in fname: # now assuming BLAST pred files
                 pred_file = pickle.load(open(fname, 'rb'))
@@ -130,10 +172,40 @@ def load_perfs(fnames, loso=False):
                 trial_micros = []
                 trial_accs = []
                 trial_f1s = []
+                '''
+                new_test_prot_set = set(pred_file['prots'])
+                if len(test_prot_set) > 0:
+                    try:
+                        assert new_test_prot_set == test_prot_set
+                    except AssertionError:
+                        print('Intersect:')
+                        print(len(new_test_prot_set & test_prot_set))
+                        print('Difference (blast - other):')
+                        print(new_test_prot_set - test_prot_set)
+                        print('Difference (other - blast):')
+                        print(test_prot_set - new_test_prot_set)
+                        print('Removing the (blast - other) samples')
+                        prots_to_remove = new_test_prot_set - test_prot_set
+                        inds_to_remove = [list(pred_file['prots']).index(prot) for prot in prots_to_remove]
+                '''
                 for trial in range(0, num_trials):
                     print('Number of go ids: ' + str(len(pred_file['go_IDs'])))
                     curr_trial_preds = pred_file['Y_hat_test_list'][trial]
                     curr_trial_labels = pred_file['Y_test_list'][trial]
+
+                    '''
+                    print(pred_file.keys())
+                    _, test_inds = pred_file['trial_splits'][trial] # cannot actually do this because blast files do not have the actual trial indices....
+                    keep_inds = [i for i, ind in enumerate(test_inds) if ind not in inds_to_remove] # the indices of where all proteins except the problem proteins are in the current trial test set
+
+                    print('Before')
+                    print(curr_trial_labels.shape)
+                    curr_trial_preds = curr_trial_preds[keep_inds,:]
+                    curr_trial_labels = curr_trial_labels[keep_inds,:]
+                    print('After')
+                    print(curr_trial_labels.shape)
+                    '''
+
                     print('Num test: ' + str(curr_trial_preds.shape[0]))
                     curr_macro, curr_micro, curr_acc, curr_f1 = evaluate_performance(curr_trial_labels, curr_trial_preds, curr_trial_preds > 0.5)
                     trial_macros.append(curr_macro)
@@ -206,6 +278,7 @@ def load_perfs(fnames, loso=False):
     assert len(f1s) == len(f1_std_errs)
     return macros, macro_std_errs, micros, micro_std_errs, accs, acc_std_errs, f1s, f1_std_errs
 
+
 def is_number(s):
     try:
         float(s)
@@ -242,9 +315,10 @@ def plot_bars_grouped_by_metric(method_names, metric_lists, metric_stds, x_label
     print('Number of methods:')
     print(len(method_names))
     # switch the metrics and the method names
+    print('Metric lists shape')
     print(np.array(metric_lists).shape)
+    print('Method names shape')
     print(np.array(method_names).shape)
-    print(np.array(metric_stds).shape)
     for i in range(0, len(method_names)):
         x_pos = i + np.arange(0, len(metric_lists))*(len(method_names)+1)
         print(len(method_names))
