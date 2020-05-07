@@ -11,6 +11,12 @@ from sklearn.metrics import accuracy_score, f1_score
 plt.style.use('ggplot')
 
 
+'''
+CURRENT USAGE:
+python3 plot_all_perfs_all_branches.py [METHOD LIST (COMMA SEPARATED)] [TITLE] [setting: 'loso', 'alpha_testing', or 'noloso'] [LABEL FILENAME (EXPERIMENTAL EVIDENCE CODES)] [PRED FILES FOR MF,BP,CC FOR ALL METHODS TO PLOT]
+'''
+
+
 def real_AUPR(label, score):
     """Computing real AUPR . By Vlad and Meet"""
     label = label.flatten()
@@ -70,7 +76,7 @@ def evaluate_performance(y_test, y_score, y_pred):
     return pr_macro, pr_micro, acc, F1
 
 
-def load_perfs(fnames, loso=False):
+def load_perfs(fnames, branch_label_dict, loso=False):
     # fnames: filenames of performances for different alphas (0.0 to 1.0 in increments of 0.1)
     macros = []
     macro_std_errs = []
@@ -164,6 +170,7 @@ def load_perfs(fnames, loso=False):
                 else:
                     test_prot_set = new_test_prot_set
         else:
+            '''
             if '_scores.pckl' in fname: # now assuming BLAST pred files
                 pred_file = pickle.load(open(fname, 'rb'))
                 num_trials = len(pred_file['Y_hat_test_list'])
@@ -172,39 +179,11 @@ def load_perfs(fnames, loso=False):
                 trial_micros = []
                 trial_accs = []
                 trial_f1s = []
-                '''
-                new_test_prot_set = set(pred_file['prots'])
-                if len(test_prot_set) > 0:
-                    try:
-                        assert new_test_prot_set == test_prot_set
-                    except AssertionError:
-                        print('Intersect:')
-                        print(len(new_test_prot_set & test_prot_set))
-                        print('Difference (blast - other):')
-                        print(new_test_prot_set - test_prot_set)
-                        print('Difference (other - blast):')
-                        print(test_prot_set - new_test_prot_set)
-                        print('Removing the (blast - other) samples')
-                        prots_to_remove = new_test_prot_set - test_prot_set
-                        inds_to_remove = [list(pred_file['prots']).index(prot) for prot in prots_to_remove]
-                '''
                 for trial in range(0, num_trials):
                     print('Number of go ids: ' + str(len(pred_file['go_IDs'])))
                     curr_trial_preds = pred_file['Y_hat_test_list'][trial]
                     curr_trial_labels = pred_file['Y_test_list'][trial]
 
-                    '''
-                    print(pred_file.keys())
-                    _, test_inds = pred_file['trial_splits'][trial] # cannot actually do this because blast files do not have the actual trial indices....
-                    keep_inds = [i for i, ind in enumerate(test_inds) if ind not in inds_to_remove] # the indices of where all proteins except the problem proteins are in the current trial test set
-
-                    print('Before')
-                    print(curr_trial_labels.shape)
-                    curr_trial_preds = curr_trial_preds[keep_inds,:]
-                    curr_trial_labels = curr_trial_labels[keep_inds,:]
-                    print('After')
-                    print(curr_trial_labels.shape)
-                    '''
 
                     print('Num test: ' + str(curr_trial_preds.shape[0]))
                     curr_macro, curr_micro, curr_acc, curr_f1 = evaluate_performance(curr_trial_labels, curr_trial_preds, curr_trial_preds > 0.5)
@@ -212,28 +191,14 @@ def load_perfs(fnames, loso=False):
                     trial_micros.append(curr_micro)
                     trial_accs.append(curr_acc)
                     trial_f1s.append(curr_f1)
+            '''
+            if '_scores.pckl' in fname: # now assuming BLAST pred files
+                pred_file = pickle.load(open(fname, "rb"))
+                trial_macros, trial_micros, trial_accs, trial_f1s = align_pred_file_with_label_file(pred_file, branch_label_dict, blast=True)
 
             elif fname[-5:] == '.pckl': # now assuming pred file instead
                 pred_file = pickle.load(open(fname, "rb"))
-                trial_macros = []
-                trial_micros = []
-                trial_accs = []
-                trial_f1s = []
-                num_trials = len(pred_file['trial_splits'])
-                for trial in range(0, num_trials):
-                    print('Number of go ids: ' + str(len(pred_file['GO_IDs'])))
-                    curr_trial_test_inds = pred_file['trial_splits'][trial][1]
-                    curr_trial_train_inds = pred_file['trial_splits'][trial][0]
-                    curr_trial_preds = pred_file['trial_preds'][trial][curr_trial_test_inds]
-                    curr_trial_labels = pred_file['true_labels'][curr_trial_test_inds]
-                    curr_macro, curr_micro, curr_acc, curr_f1 = evaluate_performance(curr_trial_labels, curr_trial_preds, curr_trial_preds > 0.5)
-                    print('Num train: ' + str(len(curr_trial_train_inds)))
-                    print('Num test: ' + str(len(curr_trial_test_inds)))
-                    trial_macros.append(curr_macro)
-                    trial_micros.append(curr_micro)
-                    trial_accs.append(curr_acc)
-                    trial_f1s.append(curr_f1)
-
+                trial_macros, trial_micros, trial_accs, trial_f1s = align_pred_file_with_label_file(pred_file, branch_label_dict, blast=False)
                     
             elif fname[-4:] == '.mat': # worry about this one later, this is for GeneMANIA
                 perfs = sio.loadmat(fname)
@@ -328,8 +293,10 @@ def plot_bars_grouped_by_metric(method_names, metric_lists, metric_stds, x_label
         ax.bar(x_pos, methods_curr_metric, width=1, yerr=methods_curr_metric_stds, capsize=capsize, label=method_names[i], color=color_hexes[i])
     ax.set_xticks(np.arange(0, len(metric_lists))*(len(method_names)+1) + len(method_names)/2)
     ax.set_xticklabels(metric_names)
+    maximum_perf = np.max(np.array(metric_lists))
+    ax.set_yticks(np.arange(0, maximum_perf + 0.05, 0.05)) # take the max of all performances as the height
     ax.set_yticks(np.arange(0, 1.05, 0.05))
-    ax.set_ylim([0, 1.1])
+    ax.set_ylim([0, maximum_perf + 0.1])
     ax.set_xlabel(x_label)
     #ax.set_ylabel(y_label)
     ax.legend()
@@ -348,6 +315,76 @@ def plot_bars_all_metrics(method_names, metric_lists, metric_stds, x_label, ax):
     ax.legend()
 
 
+def load_label_mats(label_fname):
+    label_pickle = pickle.load(open(label_fname,'rb'))
+    to_short_name = {'molecular_function': 'MF', 'cellular_component': 'CC', 'biological_process': 'BP'}
+    label_dict = {}
+    for branch in to_short_name.keys():
+        annot = label_pickle['annot'][branch]
+        label_dict[to_short_name[branch]] = {}
+        label_dict[to_short_name[branch]]['annot'] = np.array(annot.todense())
+        label_dict[to_short_name[branch]]['prot_IDs'] = label_pickle['prot_IDs']
+        label_dict[to_short_name[branch]]['go_IDs'] = label_pickle['go_IDs'][branch]
+    return label_dict
+
+
+def get_common_indices(pred_ids, string_annot_ids):
+    common_ids = list(set(string_annot_ids).intersection(pred_ids))
+    #print ("### Number of elements in intersection:", len(common_ids))
+    pred_ids_idx = [pred_ids.index(prot) for prot in common_ids] # pred_ids_idx is the array of indices in the annotation protein list of each protein common to both prediction and string annot protein lists
+    string_annot_ids_idx = [string_annot_ids.index(prot) for prot in common_ids] # same thing for string protein list
+    return pred_ids_idx, string_annot_ids_idx 
+
+
+def align_pred_file_with_label_file(pred_dict, label_dict, blast=False):
+    trial_macros = []
+    trial_micros = []
+    trial_accs = []
+    trial_f1s = []
+    num_trials = len(pred_dict['trial_splits'])
+    label_mat = label_dict['annot']
+    label_prot_ids = label_dict['prot_IDs']
+    for trial in range(0, num_trials):
+        print('Trial ' + str(trial) + ':')
+        print('Number of go ids before intersecting: ' + str(len(pred_dict['GO_IDs'])))
+        curr_trial_test_inds = pred_dict['trial_splits'][trial][1]
+        curr_trial_train_inds = pred_dict['trial_splits'][trial][0]
+        if blast:
+            curr_trial_preds = pred_dict['trial_preds'][trial]
+        else:
+            curr_trial_preds = pred_dict['trial_preds'][trial][curr_trial_test_inds]
+        #curr_trial_labels = pred_dict['true_labels'][curr_trial_test_inds]
+        curr_trial_test_prot_ids = list(np.array(pred_dict['prot_IDs'])[curr_trial_test_inds])
+        print('Num test before removing IEA/other evidence codes: ' + str(len(curr_trial_test_inds)))
+        pred_prots_idx, string_annot_prots_idx = get_common_indices(curr_trial_test_prot_ids, label_prot_ids)
+        pred_go_terms = list(pred_dict['GO_IDs'])
+        label_go_terms = list(label_dict['go_IDs'])
+        pred_go_idx, string_annot_go_idx = get_common_indices(pred_go_terms, label_go_terms)
+        print('Number test prot ids with experimental evidence codes: ' + str(len(pred_prots_idx)))
+        print('Number intersection GO ids with experimental evidence codes: ' + str(len(pred_go_idx)))
+        try:
+            assert len(pred_go_idx) == len(pred_dict['GO_IDs'])
+        except AssertionError:
+            print('NOT ALL GO TERMS WERE IN EXPERIMENTAL ANNOTATION SET')
+        #print('string annot prots idx' + str(len(string_annot_prots_idx)))
+        curr_trial_labels = label_mat[string_annot_prots_idx, :]
+        curr_trial_labels = curr_trial_labels[:, string_annot_go_idx]
+        curr_trial_preds = curr_trial_preds[pred_prots_idx, :]
+        curr_trial_preds = curr_trial_preds[:, pred_go_idx]
+        #print('Label shape and pred shape:')
+        print(curr_trial_labels.shape)
+        print(curr_trial_preds.shape)
+
+        curr_macro, curr_micro, curr_acc, curr_f1 = evaluate_performance(curr_trial_labels, curr_trial_preds, curr_trial_preds > 0.5)
+        print('Num train: ' + str(len(curr_trial_train_inds)))
+        print('Num test: ' + str(len(curr_trial_test_inds)))
+        trial_macros.append(curr_macro)
+        trial_micros.append(curr_micro)
+        trial_accs.append(curr_acc)
+        trial_f1s.append(curr_f1)
+    return trial_macros, trial_micros, trial_accs, trial_f1s
+
+
 if __name__ == '__main__':
     labels = sys.argv[1].split(',')
     title = sys.argv[2]
@@ -359,7 +396,9 @@ if __name__ == '__main__':
         alpha_testing = True
     print('leave one species out?' + str(leave_one_species_out))
     print('Alpha testing?' + str(alpha_testing))
-    fnames = sys.argv[4:]
+    label_fname = sys.argv[4] # added to get only evidence coded proteins extracted
+    label_dict = load_label_mats(label_fname)
+    fnames = sys.argv[5:]
     
     branch_fnames = {'MF': [], 'BP': [], 'CC': []}
     for fname in fnames:
@@ -387,9 +426,8 @@ if __name__ == '__main__':
     # I want to input number of files and have it know to put all files in one plot, with the number of subplots being with the number of files
     fig, axes = plt.subplots(1, 3, constrained_layout=True)
     #fig_2, axes_2 = plt.subplots(1, 3, constrained_layout=True)
-
     for i, branch in enumerate(['MF', 'BP', 'CC']):
-        macros, macro_stds, micros, micro_stds, accs, acc_stds, f1s, f1_stds = load_perfs(branch_fnames[branch], loso=leave_one_species_out)
+        macros, macro_stds, micros, micro_stds, accs, acc_stds, f1s, f1_stds = load_perfs(branch_fnames[branch], label_dict[branch], loso=leave_one_species_out)
         metric_lists = [macros, micros, accs, f1s]
         metric_stds = [macro_stds, micro_stds, acc_stds, f1_stds]
         print(np.array(metric_lists).shape)
