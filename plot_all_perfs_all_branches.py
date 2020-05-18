@@ -264,7 +264,7 @@ def plot_bars(x, y, stds, x_label, y_label, ax, start_pos):
 
 
 def plot_bars_grouped_by_metric(method_names, metric_lists, metric_stds, x_label, ax, alpha_testing=False):
-    metric_names = ['Macro AUPR', 'Micro AUPR', 'Acc', 'F1 score']
+    metric_names = ['Macro-AUPR', 'Micro-AUPR', 'Acc', 'F1 score']
     #color_hexes = ['#003f5c', '#58508d', '#bc5090', '#ff6361', '#ffa600']
     #color_hexes = ['#130fff', '#ff0073', '#ff8600', '#a6ff00']
     #color_hexes = ['#5d63a6', '#c97199', '#f1a07d', '#dfe092']
@@ -299,7 +299,8 @@ def plot_bars_grouped_by_metric(method_names, metric_lists, metric_stds, x_label
     ax.set_ylim([0, maximum_perf + 0.1])
     ax.set_xlabel(x_label)
     #ax.set_ylabel(y_label)
-    ax.legend()
+    handles, labels = ax.get_legend_handles_labels()
+    return handles, labels
 
 
 def plot_bars_all_metrics(method_names, metric_lists, metric_stds, x_label, ax):
@@ -432,7 +433,7 @@ if __name__ == '__main__':
         metric_stds = [macro_stds, micro_stds, acc_stds, f1_stds]
         print(np.array(metric_lists).shape)
         print(np.array(metric_stds).shape)
-        plot_bars_grouped_by_metric(labels, metric_lists, metric_stds, branch, axes[i], alpha_testing=alpha_testing)
+        handles, method_lab = plot_bars_grouped_by_metric(labels, metric_lists, metric_stds, branch, axes[i], alpha_testing=alpha_testing)
         #plot_bars_all_metrics(labels, metric_lists, metric_stds, branch, axes_2[i])
         '''
         plot_bars(labels, macros, macro_stds, branch, 'Macro AUPR', axes[i])
@@ -440,6 +441,7 @@ if __name__ == '__main__':
         plot_bars(labels, accs, acc_stds, branch, 'ACC', axes[i])
         plot_bars(labels, f1s, f1_stds, branch, 'F1', axes[i])
         '''
+    fig.legend(handles, labels, loc='lower center')
     fig.suptitle(title, fontsize=16) 
     #plt.tight_layout()
     plt.show()
