@@ -264,13 +264,13 @@ def plot_bars(x, y, stds, x_label, y_label, ax, start_pos):
 
 
 def plot_bars_grouped_by_metric(method_names, metric_lists, metric_stds, x_label, ax, alpha_testing=False):
-    metric_names = ['Macro-AUPR', 'Micro-AUPR', 'Acc', 'F1 score']
+    metric_names = ['M-AUPR', 'm-AUPR', 'Acc', 'F1 score']
     #color_hexes = ['#003f5c', '#58508d', '#bc5090', '#ff6361', '#ffa600']
     #color_hexes = ['#130fff', '#ff0073', '#ff8600', '#a6ff00']
     #color_hexes = ['#5d63a6', '#c97199', '#f1a07d', '#dfe092']
     if not alpha_testing:
-        color_hexes = ['#003f5c', '#58508d','#bc5090','#ff6361','#ffa600', '#dfe092', '#a6ff00']
-        capsize = 5
+        color_hexes = ['#003f5c', '#58508d','#bc5090','#ff6361','#ffa600', '#dfe092', '#a6ff00', '#98bac2', '#b6d1d5', '#d4e8e9', '#f3ffff']
+        capsize = 2
     else:
         color_hexes = ['#00141d', '#072c39', '#193d46', '#004c6d', '#29617d', '#45778d', '#608d9e', '#7ca3b0', '#98bac2', '#b6d1d5', '#d4e8e9', '#f3ffff']
         capsize = 2
@@ -304,10 +304,10 @@ def plot_bars_grouped_by_metric(method_names, metric_lists, metric_stds, x_label
 
 
 def plot_bars_all_metrics(method_names, metric_lists, metric_stds, x_label, ax):
-    metric_names = ['Macro AUPR', 'Micro AUPR', 'Acc', 'F1 score']
+    metric_names = ['M-AUPR', 'm-AUPR', 'Acc', 'F1 score']
     for i in range(0, len(metric_lists)):
         x_pos = i + np.arange(0, len(method_names))*(len(metric_lists)+1)
-        ax.bar(x_pos, metric_lists[i], width=1, yerr=metric_stds[i], capsize=5, label=metric_names[i])
+        ax.bar(x_pos, metric_lists[i], width=1, yerr=metric_stds[i], capsize=2, label=metric_names[i])
     ax.set_xticks(np.arange(0, len(method_names))*(len(metric_lists)+1) + len(metric_lists)/2)
     ax.set_xticklabels(method_names)
     ax.set_yticks(np.arange(0, 1.05, 0.05))
@@ -330,7 +330,7 @@ def load_label_mats(label_fname):
 
 
 def get_common_indices(pred_ids, string_annot_ids):
-    common_ids = list(set(string_annot_ids).intersection(pred_ids))
+    common_ids = sorted(list(set(string_annot_ids).intersection(pred_ids)))
     #print ("### Number of elements in intersection:", len(common_ids))
     pred_ids_idx = [pred_ids.index(prot) for prot in common_ids] # pred_ids_idx is the array of indices in the annotation protein list of each protein common to both prediction and string annot protein lists
     string_annot_ids_idx = [string_annot_ids.index(prot) for prot in common_ids] # same thing for string protein list
@@ -402,6 +402,7 @@ if __name__ == '__main__':
     fnames = sys.argv[5:]
     
     branch_fnames = {'MF': [], 'BP': [], 'CC': []}
+    ex = False
     for fname in fnames:
         if 'molecular_function' in fname:
             branch_fnames['MF'].append(fname)
@@ -410,8 +411,11 @@ if __name__ == '__main__':
         elif 'biological_process' in fname:
             branch_fnames['BP'].append(fname)
         else:
-            print('One of the filenames doesn\'t have the strings \'molecular_function\', \'cellular_component\', or \'biological_process\' in it. All performance filenames must have one of these to be included in the plots.')
+            print('One of the filenames doesn\'t have the strings \'molecular_function\', \'cellular_component\', or \'biological_process\' in it. All performance filenames must have one of these to be included in the plots. Exiting after checking the rest.')
             print(fname)
+            ex = True
+    if ex:
+        exit()
     try:
         assert len(branch_fnames['MF']) == len(branch_fnames['CC']) == len(branch_fnames['BP'])
         for branch in ['MF', 'BP','CC']:
