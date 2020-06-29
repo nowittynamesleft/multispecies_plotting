@@ -332,7 +332,7 @@ def main(fname_1, fname_2, combined_model, label_fname, go_name_fname, loso, lab
     auprs_2 = [auprs_2[i] for i in idx]
     # auprs_3 = [auprs_3[i] for i in idx]
     n = 10
-    print('Top ' + str(n) + ' better go ids for ' + label_2 + ' and performances:')
+    print('Top ' + str(n) + ' better go ids for ' + label_1 + ' and performances:')
     print(goterms[:n])
     print('Perf for ' + label_1 + ': ')
     print(auprs_1[:n])
@@ -383,11 +383,11 @@ def main(fname_1, fname_2, combined_model, label_fname, go_name_fname, loso, lab
 
     gonames = truncate_go_names(gonames)
     if title_label is None:
-        title_label = 'Top ' + str(n) + ' GO Terms with Positive Performance Difference For Each Model:' + label_1 + ' vs. ' + label_2 + ' (AUPR) -- ' + short_ont
+        title_label = 'Top ' + str(n) + ' GO Terms with Positive Performance Difference For Each Model (AUPR) -- ' + short_ont
     plot_diff(goterms, gonames, label_1, label_2, auprs_1, auprs_2, errs_1, errs_2, diff, ont, title_label)
 
     # okay, now I want the GO term performances when combining the models, compared to each individual one, for each of those GO terms that are in the top 10
-    combined_title = 'Comparison of Combined Model with Single-source Model on Top '+ str(n) + ' Underperforming GO-terms'
+    combined_title = 'AUPR Comparison of Combined Model with Single-source Model'
     plot_diff(goterms, gonames, label_1, 'Combined ' + label_1 + '/' + label_2, auprs_1, auprs_combined, errs_1, errs_combined, diff_comb_1, ont, combined_title)
     plot_diff(goterms, gonames, label_2, 'Combined ' + label_1 + '/' + label_2, auprs_2, auprs_combined, errs_2, errs_combined, diff_comb_2, ont, combined_title)
     

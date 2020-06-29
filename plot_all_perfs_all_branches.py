@@ -399,7 +399,9 @@ if __name__ == '__main__':
     print('Alpha testing?' + str(alpha_testing))
     label_fname = sys.argv[4] # added to get only evidence coded proteins extracted
     label_dict = load_label_mats(label_fname)
-    fnames = sys.argv[5:]
+    all_branches = sys.argv[5] == 'all'
+    fnames = sys.argv[6:]
+
     
     branch_fnames = {'MF': [], 'BP': [], 'CC': []}
     ex = False
@@ -416,35 +418,50 @@ if __name__ == '__main__':
             ex = True
     if ex:
         exit()
-    try:
-        assert len(branch_fnames['MF']) == len(branch_fnames['CC']) == len(branch_fnames['BP'])
-        for branch in ['MF', 'BP','CC']:
-            print(branch)
-            print(len(branch_fnames[branch]))
-    except AssertionError:
-        print('Not all branches have same number of files associated')
-        for branch in ['MF', 'BP','CC']:
-            print(branch)
-            print(branch_fnames[branch])
-            print(len(branch_fnames[branch]))
-        exit()
-    # I want to input number of files and have it know to put all files in one plot, with the number of subplots being with the number of files
-    fig, axes = plt.subplots(1, 3, constrained_layout=True)
-    #fig_2, axes_2 = plt.subplots(1, 3, constrained_layout=True)
-    for i, branch in enumerate(['MF', 'BP', 'CC']):
-        macros, macro_stds, micros, micro_stds, accs, acc_stds, f1s, f1_stds = load_perfs(branch_fnames[branch], label_dict[branch], loso=leave_one_species_out)
-        metric_lists = [macros, micros, accs, f1s]
-        metric_stds = [macro_stds, micro_stds, acc_stds, f1_stds]
-        print(np.array(metric_lists).shape)
-        print(np.array(metric_stds).shape)
-        handles, method_lab = plot_bars_grouped_by_metric(labels, metric_lists, metric_stds, branch, axes[i], alpha_testing=alpha_testing)
-        #plot_bars_all_metrics(labels, metric_lists, metric_stds, branch, axes_2[i])
-        '''
-        plot_bars(labels, macros, macro_stds, branch, 'Macro AUPR', axes[i])
-        plot_bars(labels, micros, micro_stds, branch, 'Micro AUPR', axes[i])
-        plot_bars(labels, accs, acc_stds, branch, 'ACC', axes[i])
-        plot_bars(labels, f1s, f1_stds, branch, 'F1', axes[i])
-        '''
+    if all_branches:
+        try:
+            assert len(branch_fnames['MF']) == len(branch_fnames['CC']) == len(branch_fnames['BP'])
+            for branch in ['MF', 'BP','CC']:
+                print(branch)
+                print(len(branch_fnames[branch]))
+        except AssertionError:
+            print('Not all branches have same number of files associated')
+            for branch in ['MF', 'BP','CC']:
+                print(branch)
+                print(branch_fnames[branch])
+                print(len(branch_fnames[branch]))
+            exit()
+        # I want to input number of files and have it know to put all files in one plot, with the number of subplots being with the number of files
+        fig, axes = plt.subplots(1, 3, constrained_layout=True)
+        #fig_2, axes_2 = plt.subplots(1, 3, constrained_layout=True)
+        for i, branch in enumerate(['MF', 'BP', 'CC']):
+            macros, macro_stds, micros, micro_stds, accs, acc_stds, f1s, f1_stds = load_perfs(branch_fnames[branch], label_dict[branch], loso=leave_one_species_out)
+            metric_lists = [macros, micros, accs, f1s]
+            metric_stds = [macro_stds, micro_stds, acc_stds, f1_stds]
+            print(np.array(metric_lists).shape)
+            print(np.array(metric_stds).shape)
+            handles, method_lab = plot_bars_grouped_by_metric(labels, metric_lists, metric_stds, branch, axes[i], alpha_testing=alpha_testing)
+            #plot_bars_all_metrics(labels, metric_lists, metric_stds, branch, axes_2[i])
+            '''
+            plot_bars(labels, macros, macro_stds, branch, 'Macro AUPR', axes[i])
+            plot_bars(labels, micros, micro_stds, branch, 'Micro AUPR', axes[i])
+            plot_bars(labels, accs, acc_stds, branch, 'ACC', axes[i])
+            plot_bars(labels, f1s, f1_stds, branch, 'F1', axes[i])
+            '''
+    else:
+        fig, ax = plt.subplots(1, 1, constrained_layout=True)
+        #fig_2, axes_2 = plt.subplots(1, 3, constrained_layout=True)
+        for i, branch in enumerate(['MF', 'BP', 'CC']):
+            if len(branch_fnames[branch]) > 0:
+                print('Found file with branch ' + branch +', assuming no other branches are present.')
+                macros, macro_stds, micros, micro_stds, accs, acc_stds, f1s, f1_stds = load_perfs(branch_fnames[branch], label_dict[branch], loso=leave_one_species_out)
+                metric_lists = [macros, micros, accs, f1s]
+                metric_stds = [macro_stds, micro_stds, acc_stds, f1_stds]
+                print(np.array(metric_lists).shape)
+                print(np.array(metric_stds).shape)
+                handles, method_lab = plot_bars_grouped_by_metric(labels, metric_lists, metric_stds, branch, ax, alpha_testing=alpha_testing)
+                break
+
     fig.legend(handles, labels, loc='lower center')
     fig.suptitle(title, fontsize=16) 
     #plt.tight_layout()
