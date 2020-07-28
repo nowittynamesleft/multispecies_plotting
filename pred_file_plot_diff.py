@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from plot_all_perfs_all_branches import real_AUPR, get_common_indices
-from scipy.stats import sem
+from scipy.stats import sem, mannwhitneyu
 import sys
 import pickle
 #plt.style.use('ggplot')
@@ -156,12 +156,16 @@ def inds_from_list(go_terms_1, go_terms_2):
     return [list(go_terms_2).index(go_terms_1[ind]) for ind in range(0, len(go_terms_1))]
 
 
-def get_mean_and_sem(trial_perfs):
+def get_mean_sem_p(trial_perfs):
     assert len(trial_perfs.shape) > 1
     num_trials = trial_perfs.shape[0]
     mean = np.nanmean(trial_perfs, axis=0)
     err = sem(trial_perfs, axis=0, nan_policy='omit') 
-    return mean, err
+    ps = np.zeros((trial_perfs.shape[1],))
+    for i in range(0, trial_perfs.shape[1])
+        _, p = mannwhitneyu(trial_perfs[:, i])
+        ps[i] = p
+    return mean, err, p
 
 def first_n_last_n(l, n):
     new_l = l[:n]
@@ -296,12 +300,12 @@ def main(fname_1, fname_2, combined_model, label_fname, go_name_fname, loso, lab
     diff_comb_1 = auprs_combined - auprs_1
     diff_comb_2 = auprs_combined - auprs_2
     if not loso:
-        auprs_1, errs_1 = get_mean_and_sem(auprs_1)
-        auprs_2, errs_2 = get_mean_and_sem(auprs_2)
-        auprs_combined, errs_combined = get_mean_and_sem(auprs_combined)
-        diff, diff_err = get_mean_and_sem(diff)
-        diff_comb_1, diff_comb_err_1 = get_mean_and_sem(diff_comb_1)
-        diff_comb_2, diff_comb_err_2 = get_mean_and_sem(diff_comb_2)
+        auprs_1, errs_1, p_1 = get_mean_sem_p(auprs_1)
+        auprs_2, errs_2, p_1 = get_mean_sem_p(auprs_2)
+        auprs_combined, errs_combined, p_combined = get_mean_sem_p(auprs_combined)
+        diff, diff_err, p_diff = get_mean_sem_p(diff)
+        diff_comb_1, diff_comb_err_1, p_diff_comb_1 = get_mean_sem_p(diff_comb_1)
+        diff_comb_2, diff_comb_err_2, p_diff_comb_2 = get_mean_sem_p(diff_comb_2)
         '''
         remove_inds = list(np.where(auprs_1 == np.nan)[0])
         remove_inds.extend(list(np.where(auprs_2 == np.nan)[0]))
@@ -358,6 +362,14 @@ def main(fname_1, fname_2, combined_model, label_fname, go_name_fname, loso, lab
     errs_combined = [errs_combined[i] for i in idx]
     diff_comb_1 = [diff_comb_1[i] for i in idx]
     diff_comb_2 = [diff_comb_2[i] for i in idx]
+    p_1 = [p_1[i] for i in idx]
+    p_2 = [p_2[i] for i in idx]
+    p_combined = [p_combined for i in idx]
+    p_diff = [p_diff[i] for i in idx]
+    p_diff_comb_1 = [p_diff_comb_1[i] for i in idx]
+    p_diff_comb_2 = [p_diff_comb_2[i] for i in idx]
+
+    
 
     auprs_1 = first_n_last_n(auprs_1, n)
     auprs_2 = first_n_last_n(auprs_2, n)

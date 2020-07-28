@@ -106,10 +106,8 @@ def load_perfs(fnames, branch_label_dict, loso=False):
 
                 new_test_prot_set = set(pred_file['prots'])
 
-
                 print('Number of go ids: ' + str(len(pred_file['go_IDs'])))
                 curr_trial_preds = pred_file['Y_hat_test']
-                curr_trial_labels = pred_file['Y_test']
                 print('Num test: ' + str(curr_trial_preds.shape[0]))
 
                 if len(test_prot_set) > 0:
@@ -125,21 +123,25 @@ def load_perfs(fnames, branch_label_dict, loso=False):
                         print('Removing the (blast - other) samples')
                         prots_to_remove = new_test_prot_set - test_prot_set
                         inds_to_remove = [list(pred_file['prots']).index(prot) for prot in prots_to_remove]
-                        keep_inds = np.array([i for i in range(0, len(pred_file['Y_test'])) if i not in inds_to_remove])
+                        keep_inds = np.array([i for i in range(0, len(pred_file['Y_hat_test'])) if i not in inds_to_remove])
                         print('Before')
-                        print(curr_trial_labels.shape)
                         curr_trial_preds = curr_trial_preds[keep_inds,:]
-                        curr_trial_labels = curr_trial_labels[keep_inds,:]
+                        pred_file['Y_hat_test'] = curr_trial_preds
+                        pred_file['prots'] = pred_file['prots'][keep_inds]
                         print('After')
-                        print(curr_trial_labels.shape)
+                        print(curr_trial_preds.shape)
 
                 else:
                     test_prot_set = new_test_prot_set
+                '''
                 curr_macro, curr_micro, curr_acc, curr_f1 = evaluate_performance(curr_trial_labels, curr_trial_preds, curr_trial_preds > 0.5)
+                
                 trial_macros.append(curr_macro)
                 trial_micros.append(curr_micro)
                 trial_accs.append(curr_acc)
                 trial_f1s.append(curr_f1)
+                '''
+                trial_macros, trial_micros, trial_accs, trial_f1s = align_pred_file_with_label_file_loso(pred_file, branch_label_dict, blast=True)
 
             elif fname[-5:] == '.pckl': # now assuming pred file instead
                 pred_file = pickle.load(open(fname, "rb"))
@@ -149,13 +151,14 @@ def load_perfs(fnames, branch_label_dict, loso=False):
                 trial_f1s = []
                 print('Number of go ids: ' + str(len(pred_file['GO_IDs'])))
                 curr_trial_preds = pred_file['preds']
-                curr_trial_labels = pred_file['true_labels']
-                curr_macro, curr_micro, curr_acc, curr_f1 = evaluate_performance(curr_trial_labels, curr_trial_preds, curr_trial_preds > 0.5)
-                print('Num test: ' + str(curr_trial_labels.shape[0]))
+                
+                print('Num test: ' + str(curr_trial_preds.shape[0]))
+                '''
                 trial_macros.append(curr_macro)
                 trial_micros.append(curr_micro)
                 trial_accs.append(curr_acc)
                 trial_f1s.append(curr_f1)
+                '''
                 new_test_prot_set = set(pred_file['prot_IDs'])
                 if len(test_prot_set) > 0:
                     try:
@@ -169,6 +172,7 @@ def load_perfs(fnames, branch_label_dict, loso=False):
                         print(test_prot_set - new_test_prot_set)
                 else:
                     test_prot_set = new_test_prot_set
+                trial_macros, trial_micros, trial_accs, trial_f1s = align_pred_file_with_label_file_loso(pred_file, branch_label_dict, blast=False)
         else:
             '''
             if '_scores.pckl' in fname: # now assuming BLAST pred files
@@ -272,7 +276,8 @@ def plot_bars_grouped_by_metric(method_names, metric_lists, metric_stds, x_label
         color_hexes = ['#003f5c', '#58508d','#bc5090','#ff6361','#ffa600', '#dfe092', '#a6ff00', '#98bac2', '#b6d1d5', '#d4e8e9', '#f3ffff']
         capsize = 2
     else:
-        color_hexes = ['#00141d', '#072c39', '#193d46', '#004c6d', '#29617d', '#45778d', '#608d9e', '#7ca3b0', '#98bac2', '#b6d1d5', '#d4e8e9', '#f3ffff']
+        #color_hexes = ['#00141d', '#072c39', '#193d46', '#004c6d', '#29617d', '#45778d', '#608d9e', '#7ca3b0', '#98bac2', '#b6d1d5', '#d4e8e9', '#f3ffff']
+        color_hexes = ['#00141d', '#072c39', '#193d46', '#004c6d', '#45778d', '#7ca3b0', '#b6d1d5', '#d4e8e9', '#f3ffff']
         capsize = 2
 
     print('Number of colors:')
@@ -386,6 +391,54 @@ def align_pred_file_with_label_file(pred_dict, label_dict, blast=False):
     return trial_macros, trial_micros, trial_accs, trial_f1s
 
 
+def align_pred_file_with_label_file_loso(pred_dict, label_dict, blast=False):
+    trial_macros = []
+    trial_micros = []
+    trial_accs = []
+    trial_f1s = []
+    label_mat = label_dict['annot']
+    label_prot_ids = label_dict['prot_IDs']
+    print(pred_dict.keys())
+    if blast:
+        pred_go_ids = pred_dict['go_IDs']
+        preds = pred_dict['Y_hat_test']
+        pred_prot_ids = list(pred_dict['prots'])
+    else:
+        pred_go_ids = pred_dict['GO_IDs']
+        preds = pred_dict['preds']
+        pred_prot_ids = list(pred_dict['prot_IDs'])
+    print('Number of go ids before intersecting: ' + str(len(pred_go_ids)))
+    #curr_trial_labels = pred_dict['true_labels'][curr_trial_test_inds]
+    print('Num test before removing IEA/other evidence codes: ' + str(preds.shape[0]))
+    assert len(pred_prot_ids) == preds.shape[0]
+    pred_prots_idx, string_annot_prots_idx = get_common_indices(pred_prot_ids, label_prot_ids)
+    pred_go_terms = list(pred_go_ids)
+    label_go_terms = list(label_dict['go_IDs'])
+    pred_go_idx, string_annot_go_idx = get_common_indices(pred_go_terms, label_go_terms)
+    print('Number test prot ids with experimental evidence codes: ' + str(len(pred_prots_idx)))
+    print('Number intersection GO ids with experimental evidence codes: ' + str(len(pred_go_idx)))
+    try:
+        assert len(pred_go_idx) == len(pred_go_ids)
+    except AssertionError:
+        print('NOT ALL GO TERMS WERE IN EXPERIMENTAL ANNOTATION SET')
+    #print('string annot prots idx' + str(len(string_annot_prots_idx)))
+    curr_trial_labels = label_mat[string_annot_prots_idx, :]
+    curr_trial_labels = curr_trial_labels[:, string_annot_go_idx]
+    preds = preds[pred_prots_idx, :]
+    preds = preds[:, pred_go_idx]
+    #print('Label shape and pred shape:')
+    print(curr_trial_labels.shape)
+    print(preds.shape)
+
+    curr_macro, curr_micro, curr_acc, curr_f1 = evaluate_performance(curr_trial_labels, preds, preds > 0.5)
+    print('Num test: ' + str(preds.shape[0]))
+    trial_macros.append(curr_macro)
+    trial_micros.append(curr_micro)
+    trial_accs.append(curr_acc)
+    trial_f1s.append(curr_f1)
+    return trial_macros, trial_micros, trial_accs, trial_f1s
+
+
 if __name__ == '__main__':
     labels = sys.argv[1].split(',')
     title = sys.argv[2]
@@ -398,9 +451,15 @@ if __name__ == '__main__':
     print('leave one species out?' + str(leave_one_species_out))
     print('Alpha testing?' + str(alpha_testing))
     label_fname = sys.argv[4] # added to get only evidence coded proteins extracted
+    print('label fname ' + label_fname)
     label_dict = load_label_mats(label_fname)
     all_branches = sys.argv[5] == 'all'
     fnames = sys.argv[6:]
+    if all_branches:
+        print(str(len(labels)*3) + ' ' + str(len(fnames)))
+        assert len(labels)*3 == len(fnames)
+    else:
+        assert len(labels) == len(fnames)
 
     
     branch_fnames = {'MF': [], 'BP': [], 'CC': []}
