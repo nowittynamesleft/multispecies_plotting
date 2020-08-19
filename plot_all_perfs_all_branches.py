@@ -491,7 +491,10 @@ if __name__ == '__main__':
                 print(len(branch_fnames[branch]))
             exit()
         # I want to input number of files and have it know to put all files in one plot, with the number of subplots being with the number of files
-        fig, axes = plt.subplots(1, 3, constrained_layout=True)
+        if leave_one_species_out:
+            fig, axes = plt.subplots(1, 3, constrained_layout=True, figsize=(8.67, 4.61))
+        else:
+            fig, axes = plt.subplots(1, 3, constrained_layout=True, figsize=(8.71,5.66))
         #fig_2, axes_2 = plt.subplots(1, 3, constrained_layout=True)
         for i, branch in enumerate(['MF', 'BP', 'CC']):
             macros, macro_stds, micros, micro_stds, accs, acc_stds, f1s, f1_stds = load_perfs(branch_fnames[branch], label_dict[branch], loso=leave_one_species_out)
@@ -507,9 +510,13 @@ if __name__ == '__main__':
             plot_bars(labels, accs, acc_stds, branch, 'ACC', axes[i])
             plot_bars(labels, f1s, f1_stds, branch, 'F1', axes[i])
             '''
+        if leave_one_species_out:
+            plt.subplots_adjust(top=0.925, bottom=0.225, left=0.05, right=0.99, hspace=0.2, wspace=0.2)
+        else:
+            plt.subplots_adjust(top=0.945, bottom=0.34, left=0.05, right=0.99, hspace=0.2, wspace=0.2)
     else:
-        fig, ax = plt.subplots(1, 1, constrained_layout=True)
         #fig_2, axes_2 = plt.subplots(1, 3, constrained_layout=True)
+        fig, ax = plt.subplots(1, 1, constrained_layout=True)
         for i, branch in enumerate(['MF', 'BP', 'CC']):
             if len(branch_fnames[branch]) > 0:
                 print('Found file with branch ' + branch +', assuming no other branches are present.')
@@ -525,4 +532,5 @@ if __name__ == '__main__':
     fig.suptitle(title, fontsize=16) 
     #plt.tight_layout()
     plt.show()
-    plt.savefig(title + '_macro_perfs.eps')
+    file_title = ''.join(title.split(' '))
+    fig.savefig(file_title + '_macro_perfs.eps', format='eps')
