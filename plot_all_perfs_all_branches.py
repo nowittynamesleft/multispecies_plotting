@@ -15,6 +15,68 @@ plt.style.use('ggplot')
 CURRENT USAGE:
 python3 plot_all_perfs_all_branches.py [METHOD LIST (COMMA SEPARATED)] [TITLE] [setting: 'loso', 'alpha_testing', or 'noloso'] [LABEL FILENAME (EXPERIMENTAL EVIDENCE CODES)] [PRED FILES FOR MF,BP,CC FOR ALL METHODS TO PLOT]
 '''
+#def get_fmax(preds, labels, gos):
+def get_fmax(preds, labels):
+    # preds = np.round(preds, decimals=2)
+    f_max = 0
+    p_max = 0
+    r_max = 0
+    t_max = 0
+    for t in range(1, 100):
+        threshold = t / 100.0
+        predictions = (preds > threshold).astype(np.int32)
+        # predictions = list()
+        total = 0
+        f = 0.0
+        p = 0.0
+        r = 0.0
+        p_total = 0
+        for i in range(preds.shape[0]):
+            tp = np.sum(predictions[i, :] * labels[i, :])
+            fp = np.sum(predictions[i, :]) - tp
+            fn = np.sum(labels[i, :]) - tp
+            '''
+            all_gos = set()
+            all_preds = set()
+            for go_id in gos[i]:
+                if go_id in all_functions:
+                    all_gos |= get_anchestors(go, go_id)
+            all_gos.discard(GO_ID)
+            # for val in preds[i]:
+            #     go_id, score = val
+            #     if score > threshold and go_id in all_functions:
+            #         all_preds |= get_anchestors(go, go_id)
+            # all_preds.discard(GO_ID)
+            # predictions.append(all_preds)
+            # tp = len(all_gos.intersection(all_preds))
+            # fp = len(all_preds) - tp
+            # fn = len(all_gos) - tp
+            all_gos -= func_set
+            fn += len(all_gos)
+            '''
+            
+            if tp == 0 and fp == 0 and fn == 0:
+                continue
+            total += 1
+            if tp != 0:
+                p_total += 1
+                precision = tp / (1.0 * (tp + fp))
+                recall = tp / (1.0 * (tp + fn))
+                p += precision
+                r += recall
+        if total > 0 and p_total > 0:
+            r /= total
+            p /= p_total
+            if p + r > 0:
+                f = 2 * p * r / (p + r)
+                if f_max < f:
+                    f_max = f
+                    p_max = p
+                    r_max = r
+                    t_max = threshold
+                    predictions_max = predictions
+
+    return f_max, p_max, r_max, t_max, predictions_max
 
 
 def real_AUPR(label, score):
@@ -72,8 +134,9 @@ def evaluate_performance(y_test, y_score, y_pred):
         top_alpha = np.argsort(y_score[i, :])[-alpha:]
         y_new_pred[i, top_alpha] = np.array(alpha*[1])
     F1 = f1_score(y_test, y_new_pred, average='micro')
-
-    return pr_macro, pr_micro, acc, F1
+    fmax, _, _, _, _ = get_fmax(y_new_pred, y_test)
+    print(fmax)
+    return pr_macro, pr_micro, acc, F1, fmax
 
 
 def load_perfs(fnames, branch_label_dict, loso=False):
@@ -86,6 +149,8 @@ def load_perfs(fnames, branch_label_dict, loso=False):
     acc_std_errs = []
     f1s = []
     f1_std_errs = []
+    fmaxes = []
+    fmax_std_errs = []
     test_prot_set = set()
     for fname in fnames:
         print(fname)
@@ -141,7 +206,7 @@ def load_perfs(fnames, branch_label_dict, loso=False):
                 trial_accs.append(curr_acc)
                 trial_f1s.append(curr_f1)
                 '''
-                trial_macros, trial_micros, trial_accs, trial_f1s = align_pred_file_with_label_file_loso(pred_file, branch_label_dict, blast=True)
+                trial_macros, trial_micros, trial_accs, trial_f1s, trial_fmaxes = align_pred_file_with_label_file_loso(pred_file, branch_label_dict, blast=True)
 
             elif fname[-5:] == '.pckl': # now assuming pred file instead
                 pred_file = pickle.load(open(fname, "rb"))
@@ -172,7 +237,7 @@ def load_perfs(fnames, branch_label_dict, loso=False):
                         print(test_prot_set - new_test_prot_set)
                 else:
                     test_prot_set = new_test_prot_set
-                trial_macros, trial_micros, trial_accs, trial_f1s = align_pred_file_with_label_file_loso(pred_file, branch_label_dict, blast=False)
+                trial_macros, trial_micros, trial_accs, trial_f1s, trial_fmaxes = align_pred_file_with_label_file_loso(pred_file, branch_label_dict, blast=False)
         else:
             '''
             if '_scores.pckl' in fname: # now assuming BLAST pred files
@@ -198,11 +263,11 @@ def load_perfs(fnames, branch_label_dict, loso=False):
             '''
             if '_scores.pckl' in fname: # now assuming BLAST pred files
                 pred_file = pickle.load(open(fname, "rb"))
-                trial_macros, trial_micros, trial_accs, trial_f1s = align_pred_file_with_label_file(pred_file, branch_label_dict, blast=True)
+                trial_macros, trial_micros, trial_accs, trial_f1s, trial_fmaxes = align_pred_file_with_label_file(pred_file, branch_label_dict, blast=True)
 
             elif fname[-5:] == '.pckl': # now assuming pred file instead
                 pred_file = pickle.load(open(fname, "rb"))
-                trial_macros, trial_micros, trial_accs, trial_f1s = align_pred_file_with_label_file(pred_file, branch_label_dict, blast=False)
+                trial_macros, trial_micros, trial_accs, trial_f1s, trial_fmaxes = align_pred_file_with_label_file(pred_file, branch_label_dict, blast=False)
                     
             elif fname[-4:] == '.mat': # worry about this one later, this is for GeneMANIA
                 perfs = sio.loadmat(fname)
@@ -241,11 +306,15 @@ def load_perfs(fnames, branch_label_dict, loso=False):
         f1 = np.nanmean(trial_f1s)
         f1s.append(f1)
         f1_std_errs.append(sem(trial_f1s))
+
+        fmax = np.nanmean(trial_fmaxes)
+        fmaxes.append(fmax)
+        fmax_std_errs.append(sem(trial_fmaxes))
     assert len(macros) == len(macro_std_errs)
     assert len(micros) == len(micro_std_errs)
     assert len(accs) == len(acc_std_errs)
     assert len(f1s) == len(f1_std_errs)
-    return macros, macro_std_errs, micros, micro_std_errs, accs, acc_std_errs, f1s, f1_std_errs
+    return macros, macro_std_errs, micros, micro_std_errs, accs, acc_std_errs, f1s, f1_std_errs, fmaxes, fmax_std_errs
 
 
 def is_number(s):
@@ -268,7 +337,7 @@ def plot_bars(x, y, stds, x_label, y_label, ax, start_pos):
 
 
 def plot_bars_grouped_by_metric(method_names, metric_lists, metric_stds, x_label, ax, alpha_testing=False):
-    metric_names = ['M-AUPR', 'm-AUPR', 'Acc', 'F1 score']
+    metric_names = ['M-AUPR', 'm-AUPR', 'Acc', 'F1 score', 'F-Max']
     #color_hexes = ['#003f5c', '#58508d', '#bc5090', '#ff6361', '#ffa600']
     #color_hexes = ['#130fff', '#ff0073', '#ff8600', '#a6ff00']
     #color_hexes = ['#5d63a6', '#c97199', '#f1a07d', '#dfe092']
@@ -309,7 +378,7 @@ def plot_bars_grouped_by_metric(method_names, metric_lists, metric_stds, x_label
 
 
 def plot_bars_all_metrics(method_names, metric_lists, metric_stds, x_label, ax):
-    metric_names = ['M-AUPR', 'm-AUPR', 'Acc', 'F1 score']
+    metric_names = ['M-AUPR', 'm-AUPR', 'Acc', 'F1 score', 'F-Max']
     for i in range(0, len(metric_lists)):
         x_pos = i + np.arange(0, len(method_names))*(len(metric_lists)+1)
         ax.bar(x_pos, metric_lists[i], width=1, yerr=metric_stds[i], capsize=2, label=metric_names[i])
@@ -347,6 +416,7 @@ def align_pred_file_with_label_file(pred_dict, label_dict, blast=False):
     trial_micros = []
     trial_accs = []
     trial_f1s = []
+    trial_fmaxes = []
     num_trials = len(pred_dict['trial_splits'])
     label_mat = label_dict['annot']
     label_prot_ids = label_dict['prot_IDs']
@@ -381,14 +451,15 @@ def align_pred_file_with_label_file(pred_dict, label_dict, blast=False):
         print(curr_trial_labels.shape)
         print(curr_trial_preds.shape)
 
-        curr_macro, curr_micro, curr_acc, curr_f1 = evaluate_performance(curr_trial_labels, curr_trial_preds, curr_trial_preds > 0.5)
+        curr_macro, curr_micro, curr_acc, curr_f1, curr_fmax = evaluate_performance(curr_trial_labels, curr_trial_preds, curr_trial_preds > 0.5)
         print('Num train: ' + str(len(curr_trial_train_inds)))
         print('Num test: ' + str(len(curr_trial_test_inds)))
         trial_macros.append(curr_macro)
         trial_micros.append(curr_micro)
         trial_accs.append(curr_acc)
         trial_f1s.append(curr_f1)
-    return trial_macros, trial_micros, trial_accs, trial_f1s
+        trial_fmaxes.append(curr_fmax)
+    return trial_macros, trial_micros, trial_accs, trial_f1s, trial_fmaxes
 
 
 def align_pred_file_with_label_file_loso(pred_dict, label_dict, blast=False):
@@ -396,6 +467,7 @@ def align_pred_file_with_label_file_loso(pred_dict, label_dict, blast=False):
     trial_micros = []
     trial_accs = []
     trial_f1s = []
+    trial_fmaxes = []
     label_mat = label_dict['annot']
     label_prot_ids = label_dict['prot_IDs']
     print(pred_dict.keys())
@@ -430,13 +502,14 @@ def align_pred_file_with_label_file_loso(pred_dict, label_dict, blast=False):
     print(curr_trial_labels.shape)
     print(preds.shape)
 
-    curr_macro, curr_micro, curr_acc, curr_f1 = evaluate_performance(curr_trial_labels, preds, preds > 0.5)
+    curr_macro, curr_micro, curr_acc, curr_f1, curr_fmax = evaluate_performance(curr_trial_labels, preds, preds > 0.5)
     print('Num test: ' + str(preds.shape[0]))
     trial_macros.append(curr_macro)
     trial_micros.append(curr_micro)
     trial_accs.append(curr_acc)
     trial_f1s.append(curr_f1)
-    return trial_macros, trial_micros, trial_accs, trial_f1s
+    trial_fmaxes.append(curr_fmax)
+    return trial_macros, trial_micros, trial_accs, trial_f1s, trial_fmaxes
 
 
 if __name__ == '__main__':
@@ -497,9 +570,9 @@ if __name__ == '__main__':
             fig, axes = plt.subplots(1, 3, constrained_layout=True, figsize=(8.71,5.66))
         #fig_2, axes_2 = plt.subplots(1, 3, constrained_layout=True)
         for i, branch in enumerate(['MF', 'BP', 'CC']):
-            macros, macro_stds, micros, micro_stds, accs, acc_stds, f1s, f1_stds = load_perfs(branch_fnames[branch], label_dict[branch], loso=leave_one_species_out)
-            metric_lists = [macros, micros, accs, f1s]
-            metric_stds = [macro_stds, micro_stds, acc_stds, f1_stds]
+            macros, macro_stds, micros, micro_stds, accs, acc_stds, f1s, f1_stds, fmaxes, fmax_stds = load_perfs(branch_fnames[branch], label_dict[branch], loso=leave_one_species_out)
+            metric_lists = [macros, micros, accs, f1s, fmaxes]
+            metric_stds = [macro_stds, micro_stds, acc_stds, f1_stds, fmax_stds]
             print(np.array(metric_lists).shape)
             print(np.array(metric_stds).shape)
             handles, method_lab = plot_bars_grouped_by_metric(labels, metric_lists, metric_stds, branch, axes[i], alpha_testing=alpha_testing)
@@ -520,9 +593,9 @@ if __name__ == '__main__':
         for i, branch in enumerate(['MF', 'BP', 'CC']):
             if len(branch_fnames[branch]) > 0:
                 print('Found file with branch ' + branch +', assuming no other branches are present.')
-                macros, macro_stds, micros, micro_stds, accs, acc_stds, f1s, f1_stds = load_perfs(branch_fnames[branch], label_dict[branch], loso=leave_one_species_out)
-                metric_lists = [macros, micros, accs, f1s]
-                metric_stds = [macro_stds, micro_stds, acc_stds, f1_stds]
+                macros, macro_stds, micros, micro_stds, accs, acc_stds, f1s, f1_stds, fmaxes, fmax_stds = load_perfs(branch_fnames[branch], label_dict[branch], loso=leave_one_species_out)
+                metric_lists = [macros, micros, accs, f1s, fmaxes]
+                metric_stds = [macro_stds, micro_stds, acc_stds, f1_stds, fmax_stds]
                 print(np.array(metric_lists).shape)
                 print(np.array(metric_stds).shape)
                 handles, method_lab = plot_bars_grouped_by_metric(labels, metric_lists, metric_stds, branch, ax, alpha_testing=alpha_testing)
