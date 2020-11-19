@@ -7,6 +7,8 @@ import matplotlib.pyplot as plt
 import pickle
 import scipy.io as sio
 from sklearn.metrics import accuracy_score, f1_score
+from sklearn.model_selection import ShuffleSplit
+
 
 plt.style.use('ggplot')
 
@@ -130,11 +132,11 @@ def evaluate_performance(y_test, y_score, y_pred):
     # Computes F1-score
     alpha = 3
     y_new_pred = np.zeros_like(y_pred)
-    for i in range(y_pred.shape[0]):
-        top_alpha = np.argsort(y_score[i, :])[-alpha:]
-        y_new_pred[i, top_alpha] = np.array(alpha*[1])
-    F1 = f1_score(y_test, y_new_pred, average='micro')
-    fmax, _, _, _, _ = get_fmax(y_new_pred, y_test)
+    for i in range(y_pred.shape[0]): # for each protein
+        top_alpha = np.argsort(y_score[i, :])[-alpha:] # get the top [alpha] predictions
+        y_new_pred[i, top_alpha] = np.array(alpha*[1]) # set them to be 1
+    F1 = f1_score(y_test, y_new_pred, average='micro') # compute F1 score of 
+    fmax, _, _, _, _ = get_fmax(y_pred, y_test)
     print(fmax)
     return pr_macro, pr_micro, acc, F1, fmax
 
@@ -206,7 +208,7 @@ def load_perfs(fnames, branch_label_dict, loso=False):
                 trial_accs.append(curr_acc)
                 trial_f1s.append(curr_f1)
                 '''
-                trial_macros, trial_micros, trial_accs, trial_f1s, trial_fmaxes = align_pred_file_with_label_file_loso(pred_file, branch_label_dict, blast=True)
+                trial_macros, trial_micros, trial_accs, trial_f1s, trial_fmaxes = align_pred_file_with_label_file_loso(pred_file, branch_label_dict, blast=True, bootstrap=5)
 
             elif fname[-5:] == '.pckl': # now assuming pred file instead
                 pred_file = pickle.load(open(fname, "rb"))
@@ -237,7 +239,7 @@ def load_perfs(fnames, branch_label_dict, loso=False):
                         print(test_prot_set - new_test_prot_set)
                 else:
                     test_prot_set = new_test_prot_set
-                trial_macros, trial_micros, trial_accs, trial_f1s, trial_fmaxes = align_pred_file_with_label_file_loso(pred_file, branch_label_dict, blast=False)
+                trial_macros, trial_micros, trial_accs, trial_f1s, trial_fmaxes = align_pred_file_with_label_file_loso(pred_file, branch_label_dict, blast=False, bootstrap=5)
         else:
             '''
             if '_scores.pckl' in fname: # now assuming BLAST pred files
@@ -265,7 +267,11 @@ def load_perfs(fnames, branch_label_dict, loso=False):
                 pred_file = pickle.load(open(fname, "rb"))
                 trial_macros, trial_micros, trial_accs, trial_f1s, trial_fmaxes = align_pred_file_with_label_file(pred_file, branch_label_dict, blast=True)
 
-            elif fname[-5:] == '.pckl': # now assuming pred file instead
+            elif 'deepGOPlus' in fname: # now assuming deepgoplus pred file instead (where trial preds is only the predictions for an individual test set)
+                pred_file = pickle.load(open(fname, "rb"))
+                trial_macros, trial_micros, trial_accs, trial_f1s, trial_fmaxes = align_pred_file_with_label_file(pred_file, branch_label_dict, blast=False, deepgoplus=True)
+
+            elif fname[-5:] == '.pckl': # now assuming netquilt pred file instead (where trial preds are over all proteins and THEN indexed here by their test indices
                 pred_file = pickle.load(open(fname, "rb"))
                 trial_macros, trial_micros, trial_accs, trial_f1s, trial_fmaxes = align_pred_file_with_label_file(pred_file, branch_label_dict, blast=False)
                     
@@ -411,7 +417,7 @@ def get_common_indices(pred_ids, string_annot_ids):
     return pred_ids_idx, string_annot_ids_idx 
 
 
-def align_pred_file_with_label_file(pred_dict, label_dict, blast=False):
+def align_pred_file_with_label_file(pred_dict, label_dict, blast=False, deepgoplus=False):
     trial_macros = []
     trial_micros = []
     trial_accs = []
@@ -426,6 +432,8 @@ def align_pred_file_with_label_file(pred_dict, label_dict, blast=False):
         curr_trial_test_inds = pred_dict['trial_splits'][trial][1]
         curr_trial_train_inds = pred_dict['trial_splits'][trial][0]
         if blast:
+            curr_trial_preds = pred_dict['trial_preds'][trial]
+        elif deepgoplus:
             curr_trial_preds = pred_dict['trial_preds'][trial]
         else:
             curr_trial_preds = pred_dict['trial_preds'][trial][curr_trial_test_inds]
@@ -459,10 +467,16 @@ def align_pred_file_with_label_file(pred_dict, label_dict, blast=False):
         trial_accs.append(curr_acc)
         trial_f1s.append(curr_f1)
         trial_fmaxes.append(curr_fmax)
+    print('TRIAL PERFS:')
+    print(trial_macros)
+    print(trial_micros)
+    print(trial_accs)
+    print(trial_f1s)
+    print(trial_fmaxes)
     return trial_macros, trial_micros, trial_accs, trial_f1s, trial_fmaxes
 
 
-def align_pred_file_with_label_file_loso(pred_dict, label_dict, blast=False):
+def align_pred_file_with_label_file_loso(pred_dict, label_dict, blast=False, bootstrap=None):
     trial_macros = []
     trial_micros = []
     trial_accs = []
@@ -487,6 +501,7 @@ def align_pred_file_with_label_file_loso(pred_dict, label_dict, blast=False):
     pred_go_terms = list(pred_go_ids)
     label_go_terms = list(label_dict['go_IDs'])
     pred_go_idx, string_annot_go_idx = get_common_indices(pred_go_terms, label_go_terms)
+    
     print('Number test prot ids with experimental evidence codes: ' + str(len(pred_prots_idx)))
     print('Number intersection GO ids with experimental evidence codes: ' + str(len(pred_go_idx)))
     try:
@@ -494,21 +509,46 @@ def align_pred_file_with_label_file_loso(pred_dict, label_dict, blast=False):
     except AssertionError:
         print('NOT ALL GO TERMS WERE IN EXPERIMENTAL ANNOTATION SET')
     #print('string annot prots idx' + str(len(string_annot_prots_idx)))
-    curr_trial_labels = label_mat[string_annot_prots_idx, :]
-    curr_trial_labels = curr_trial_labels[:, string_annot_go_idx]
-    preds = preds[pred_prots_idx, :]
-    preds = preds[:, pred_go_idx]
-    #print('Label shape and pred shape:')
-    print(curr_trial_labels.shape)
-    print(preds.shape)
+    if bootstrap is not None:
+        go_subset_label_mat = label_mat[:, string_annot_go_idx]
+        go_subset_preds = preds[:, pred_go_idx]
+        ss = ShuffleSplit(n_splits=bootstrap, test_size=0.2)
+        bootstrap_ind_list = list(ss.split(np.arange(len(string_annot_prots_idx))))
+        for bootstrap_trial in range(0, bootstrap):
+            #bootstrap_inds = np.random.choice(np.arange(len(string_annot_prots_idx)), size=int(len(string_annot_prots_idx)/bootstrap), replace=False)
+            bootstrap_inds = bootstrap_ind_list[bootstrap_trial][1]
+            curr_boot_string_idx = np.array(string_annot_prots_idx)[bootstrap_inds]
+            curr_boot_pred_idx = np.array(pred_prots_idx)[bootstrap_inds]
 
-    curr_macro, curr_micro, curr_acc, curr_f1, curr_fmax = evaluate_performance(curr_trial_labels, preds, preds > 0.5)
-    print('Num test: ' + str(preds.shape[0]))
-    trial_macros.append(curr_macro)
-    trial_micros.append(curr_micro)
-    trial_accs.append(curr_acc)
-    trial_f1s.append(curr_f1)
-    trial_fmaxes.append(curr_fmax)
+            curr_trial_labels = go_subset_label_mat[curr_boot_string_idx, :]
+            curr_trial_preds = go_subset_preds[curr_boot_pred_idx, :]
+            #print('Label shape and pred shape:')
+            print(curr_trial_labels.shape)
+            print(curr_trial_preds.shape)
+
+            curr_macro, curr_micro, curr_acc, curr_f1, curr_fmax = evaluate_performance(curr_trial_labels, curr_trial_preds, curr_trial_preds > 0.5)
+            print('Num test: ' + str(curr_trial_preds.shape[0]))
+            trial_macros.append(curr_macro)
+            trial_micros.append(curr_micro)
+            trial_accs.append(curr_acc)
+            trial_f1s.append(curr_f1)
+            trial_fmaxes.append(curr_fmax)
+    else:
+        curr_trial_labels = label_mat[string_annot_prots_idx, :]
+        curr_trial_labels = curr_trial_labels[:, string_annot_go_idx]
+        preds = preds[pred_prots_idx, :]
+        preds = preds[:, pred_go_idx]
+        #print('Label shape and pred shape:')
+        print(curr_trial_labels.shape)
+        print(preds.shape)
+
+        curr_macro, curr_micro, curr_acc, curr_f1, curr_fmax = evaluate_performance(curr_trial_labels, preds, preds > 0.5)
+        print('Num test: ' + str(preds.shape[0]))
+        trial_macros.append(curr_macro)
+        trial_micros.append(curr_micro)
+        trial_accs.append(curr_acc)
+        trial_f1s.append(curr_f1)
+        trial_fmaxes.append(curr_fmax)
     return trial_macros, trial_micros, trial_accs, trial_f1s, trial_fmaxes
 
 
