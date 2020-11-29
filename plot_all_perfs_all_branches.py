@@ -24,6 +24,7 @@ def get_fmax(preds, labels):
     p_max = 0
     r_max = 0
     t_max = 0
+    predictions_max = (preds > 0).astype(np.int32)
     for t in range(1, 100):
         threshold = t / 100.0
         predictions = (preds > threshold).astype(np.int32)
@@ -141,7 +142,7 @@ def evaluate_performance(y_test, y_score, y_pred):
     return pr_macro, pr_micro, acc, F1, fmax
 
 
-def load_perfs(fnames, branch_label_dict, loso=False):
+def load_perfs(fnames, branch_label_dict, loso=False, deepgoplus_set=None):
     # fnames: filenames of performances for different alphas (0.0 to 1.0 in increments of 0.1)
     macros = []
     macro_std_errs = []
@@ -154,6 +155,8 @@ def load_perfs(fnames, branch_label_dict, loso=False):
     fmaxes = []
     fmax_std_errs = []
     test_prot_set = set()
+    if deepgoplus_set is not None:
+        test_prot_set = deepgoplus_set
     for fname in fnames:
         print(fname)
         '''
@@ -183,10 +186,10 @@ def load_perfs(fnames, branch_label_dict, loso=False):
                     except AssertionError:
                         print('Intersect:')
                         print(len(new_test_prot_set & test_prot_set))
-                        print('Difference (blast - other):')
-                        print(new_test_prot_set - test_prot_set)
-                        print('Difference (other - blast):')
-                        print(test_prot_set - new_test_prot_set)
+                        #print('Difference (blast - other):')
+                        #print(new_test_prot_set - test_prot_set)
+                        #print('Difference (other - blast):')
+                        #print(test_prot_set - new_test_prot_set)
                         print('Removing the (blast - other) samples')
                         prots_to_remove = new_test_prot_set - test_prot_set
                         inds_to_remove = [list(pred_file['prots']).index(prot) for prot in prots_to_remove]
@@ -233,10 +236,24 @@ def load_perfs(fnames, branch_label_dict, loso=False):
                     except AssertionError:
                         print('Intersect:')
                         print(len(new_test_prot_set & test_prot_set))
-                        print('Difference (maxout - blast):')
-                        print(new_test_prot_set - test_prot_set)
-                        print('Difference (blast - maxout):')
-                        print(test_prot_set - new_test_prot_set)
+                        #print('Difference (maxout - blast):')
+                        #print(new_test_prot_set - test_prot_set)
+                        #print('Difference (blast - maxout):')
+                        #print(test_prot_set - new_test_prot_set)
+                        '''
+                        So if the new_test_prot_set is not the same as the test_prot_set, nothing happens for a netquilt-like pred_file.
+                        But if it is different for the blast-like pred file, the proteins are removed
+                        What I want is that the proteins from the deepgoplus_set are intersected with whatever the new_test_set proteins are, regardless of whether they come from netquilt or blast.
+                        '''
+                        prots_to_remove = new_test_prot_set - test_prot_set
+                        inds_to_remove = [list(pred_file['prot_IDs']).index(prot) for prot in prots_to_remove]
+                        keep_inds = np.array([i for i in range(0, len(pred_file['preds'])) if i not in inds_to_remove])
+                        print('Before')
+                        curr_trial_preds = curr_trial_preds[keep_inds,:]
+                        pred_file['preds'] = curr_trial_preds
+                        pred_file['prot_IDs'] = pred_file['prot_IDs'][keep_inds]
+                        print('After')
+                        print(curr_trial_preds.shape)
                 else:
                     test_prot_set = new_test_prot_set
                 trial_macros, trial_micros, trial_accs, trial_f1s, trial_fmaxes = align_pred_file_with_label_file_loso(pred_file, branch_label_dict, blast=False, bootstrap=5)
@@ -567,7 +584,14 @@ if __name__ == '__main__':
     print('label fname ' + label_fname)
     label_dict = load_label_mats(label_fname)
     all_branches = sys.argv[5] == 'all'
-    fnames = sys.argv[6:]
+    prot_set_file = sys.argv[6]
+    if prot_set_file == 'None':
+        deepgoplus_set = None
+    else:
+        with open(prot_set_file,'r') as prot_set_file:
+            deepgoplus_set = set(prot_set_file.read().split('\n'))
+
+    fnames = sys.argv[7:]
     if all_branches:
         print(str(len(labels)*3) + ' ' + str(len(fnames)))
         assert len(labels)*3 == len(fnames)
@@ -605,12 +629,12 @@ if __name__ == '__main__':
             exit()
         # I want to input number of files and have it know to put all files in one plot, with the number of subplots being with the number of files
         if leave_one_species_out:
-            fig, axes = plt.subplots(1, 3, constrained_layout=True, figsize=(8.67, 4.61))
+            fig, axes = plt.subplots(1, 3, constrained_layout=True, figsize=(9.67, 6.61))
         else:
-            fig, axes = plt.subplots(1, 3, constrained_layout=True, figsize=(8.71,5.66))
+            fig, axes = plt.subplots(1, 3, constrained_layout=True, figsize=(9.71,7.66))
         #fig_2, axes_2 = plt.subplots(1, 3, constrained_layout=True)
         for i, branch in enumerate(['MF', 'BP', 'CC']):
-            macros, macro_stds, micros, micro_stds, accs, acc_stds, f1s, f1_stds, fmaxes, fmax_stds = load_perfs(branch_fnames[branch], label_dict[branch], loso=leave_one_species_out)
+            macros, macro_stds, micros, micro_stds, accs, acc_stds, f1s, f1_stds, fmaxes, fmax_stds = load_perfs(branch_fnames[branch], label_dict[branch], loso=leave_one_species_out, deepgoplus_set=deepgoplus_set)
             metric_lists = [macros, micros, accs, f1s, fmaxes]
             metric_stds = [macro_stds, micro_stds, acc_stds, f1_stds, fmax_stds]
             print(np.array(metric_lists).shape)
